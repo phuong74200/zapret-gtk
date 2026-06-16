@@ -1,0 +1,17 @@
+# ---------------------------------------------------------------------------
+# Appended to /opt/zapret/config by zapret-gtk's install.sh.
+# Because config is sourced as a shell script, these later assignments win over
+# the defaults copied from zapret's config.default.
+# ---------------------------------------------------------------------------
+
+# Enable the nfqws desync daemon. The tray starts/stops the whole zapret.service,
+# which in turn runs nfqws and installs the NFQUEUE firewall rules.
+NFQWS_ENABLE=1
+
+# Fedora's firewall backend is nftables.
+FWTYPE=nftables
+
+# Apply the bypass to all matched traffic instead of a curated host list.
+# Run blockcheck (see README) to find an NFQWS_OPT tuned to your network, then
+# add an NFQWS_OPT="..." line below this comment to override the default.
+MODE_FILTER=none

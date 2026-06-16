@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Zapret Tray
+Comment=Toggle the zapret DPI-bypass service from the system tray
+Exec=zapret-tray
+Icon=zapret-on-symbolic
+Terminal=false
+Categories=Network;Security;
+Keywords=zapret;dpi;censorship;bypass;proxy;
+X-GNOME-Autostart-enabled=true
+X-GNOME-UsesNotifications=true

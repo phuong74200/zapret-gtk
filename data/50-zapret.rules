@@ -1,0 +1,13 @@
+// Installed by zapret-gtk to /etc/polkit-1/rules.d/50-zapret.rules
+//
+// Lets {USER} start/stop/restart ONLY zapret.service without a password, so the
+// tray toggle works silently. Scope is deliberately narrow: a single unit, a
+// single user, and only from an active local session.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "zapret.service" &&
+        subject.user == "{USER}" &&
+        subject.active && subject.local) {
+        return polkit.Result.YES;
+    }
+});
