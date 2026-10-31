@@ -4,8 +4,8 @@
 # Everything is cross-built on Linux:
 #   * zapret-tray.exe   compiled with mingw-w64 from windows/zapret_tray.c
 #   * zapret-service.exe  likewise, from windows/zapret_service.c
-#   * winws + WinDivert taken from the official zapret release matching the
-#                       vendored ./zapret (checksum-pinned in packaging/zapret-release.sh)
+#   * winws + WinDivert taken from the official zapret release pinned in
+#                       packaging/zapret-release.sh
 #   * the .msi          built with wixl (msitools) from windows/zapret.wxs
 #
 # Needs: x86_64-w64-mingw32-gcc, x86_64-w64-mingw32-windres, wixl, python3,
@@ -65,7 +65,9 @@ cp "$SRC/zapret_service.manifest" "$OUT/"
 echo "==> winws $ZAPRET_VERSION"
 zip=$(fetch_zapret "$ROOT/build/cache")
 rm -rf "$OUT/release"
-unzip -q "$zip" "zapret-$ZAPRET_VERSION/binaries/windows-x86_64/*" -d "$OUT/release"
+unzip -q "$zip" "zapret-$ZAPRET_VERSION/binaries/windows-x86_64/*" \
+    "zapret-$ZAPRET_VERSION/docs/LICENSE.txt" -d "$OUT/release"
+ZAPRET_LICENSE=$OUT/release/zapret-$ZAPRET_VERSION/docs/LICENSE.txt
 WINWS=$OUT/release/zapret-$ZAPRET_VERSION/binaries/windows-x86_64
 for f in winws.exe cygwin1.dll WinDivert.dll WinDivert64.sys; do
     [ -f "$WINWS/$f" ] || die "$f missing from the zapret release"
@@ -75,9 +77,9 @@ echo "==> installer files"
 crlf "$SRC/winws.conf" "$OUT/winws.conf"
 crlf "$SRC/README.txt" "$OUT/README.txt"
 crlf "$ROOT/LICENSE" "$OUT/LICENSE.txt"
-crlf "$ROOT/zapret/docs/LICENSE.txt" "$OUT/LICENSE-zapret.txt"
+crlf "$ZAPRET_LICENSE" "$OUT/LICENSE-zapret.txt"
 # License page of the installer (wixl's UI reads "License.rtf" from the cwd).
-python3 - "$ROOT/LICENSE" "$ROOT/zapret/docs/LICENSE.txt" > "$OUT/License.rtf" <<'EOF'
+python3 - "$ROOT/LICENSE" "$ZAPRET_LICENSE" > "$OUT/License.rtf" <<'EOF'
 import sys
 def esc(text):
     out = []

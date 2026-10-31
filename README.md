@@ -45,8 +45,12 @@ real state, so changes made from the command line show up too.
 - **`src/zapret_tray/`** — the GTK3 + PyGObject app.
   `app.py` (window + tray + menu), `systemd.py` (D-Bus start/stop/state),
   `autostart.py` (start-at-login), `state.py` (remembered on/off).
-- **`zapret/`** — a vendored copy of bol-van/zapret (source, version-locked; built
-  at install).
+- **zapret itself is not in this repo.** Installs and packages use the official
+  [bol-van/zapret](https://github.com/bol-van/zapret) release pinned (version +
+  SHA-256) in `packaging/zapret-release.sh`: its scripts plus its prebuilt static
+  binaries, so nothing is compiled. A copy of the pinned zip is kept in this
+  repo's releases as a fallback if the upstream download ever disappears.
+- **`packaging/`** — `.deb`/`.rpm` packaging; **`windows/`** — the Windows port.
 - **`data/`** — icons, the desktop/autostart entry, the polkit rule template, and
   the config overrides appended to zapret's config.
 - **`install.sh` / `uninstall.sh` / `Makefile`** — setup.
@@ -63,9 +67,8 @@ real state, so changes made from the command line show up too.
 > the tray works **natively on KDE Plasma, XFCE, Cinnamon, etc.** (no extension).
 > The app code is portable; only `install.sh` is Fedora/GNOME-specific.
 
-The installer pulls build deps (`gcc make zlib-devel libcap-devel
-libnetfilter_queue-devel libmnl-devel`) and runtime deps (`python3-gobject gtk3
-libayatana-appindicator-gtk3 nftables curl`).
+The installer pulls `python3-gobject gtk3 libayatana-appindicator-gtk3
+gnome-shell-extension-appindicator nftables curl unzip`. No compiler is needed.
 
 ## Install
 
@@ -104,8 +107,9 @@ cd zapret-gtk
 bash install.sh            # --yes to auto-confirm, --no-deps to skip dnf
 ```
 
-zapret's source is **vendored in-tree** (version-locked with this app), so a plain
-clone has everything — no submodule step.
+The installer downloads the pinned zapret release (checksum-verified; cached in
+`build/cache`) and installs it to `/opt/zapret` with the static binaries for your
+CPU (x86_64 or arm64).
 
 During install you're offered **blockcheck**, zapret's tool that probes your
 network and recommends a working DPI-bypass strategy. Run it and paste the
@@ -153,8 +157,7 @@ appends `NFQWS_ENABLE=1`, `FWTYPE=nftables`, and `MODE_FILTER=none` at the end.
 ## Run from source (no install)
 
 ```bash
-make build                     # compile the vendored zapret
-PYTHONPATH=src python3 -m zapret_tray
+make run                       # = PYTHONPATH=src python3 -m zapret_tray
 ```
 
 (Start/stop still needs `zapret.service` + the polkit rule installed.)
@@ -185,8 +188,8 @@ sudo dnf install mingw64-gcc msitools        # Fedora
 make windows                                  # -> dist/Zapret-<version>-x64.msi
 ```
 
-The build downloads the zapret release matching the vendored `zapret/` and
-checks its SHA-256 (pinned in `packaging/zapret-release.sh`) before bundling it.
+The build downloads the zapret release pinned in `packaging/zapret-release.sh`
+and checks its SHA-256 before bundling it.
 
 ## Releases
 
@@ -235,5 +238,14 @@ or `sudo dnf remove zapret-gtk`. Windows: Settings → Apps → Zapret.
 
 ## License
 
-This project: **MIT** (see `LICENSE`). Bundled zapret (`./zapret`): MIT, by
-bol-van — see `zapret/docs/LICENSE.txt`.
+This project: **MIT** (see `LICENSE`). Bundled zapret: MIT, by bol-van — see
+`/opt/zapret/docs/LICENSE.txt` once installed. WinDivert (Windows only): LGPL v3 /
+GPL v2.
+
+## Updating zapret
+
+1. Set `ZAPRET_VERSION` and `ZAPRET_SHA256` in `packaging/zapret-release.sh`
+   (the release page on GitHub shows each file's SHA-256).
+2. Upload the zip to this repo's mirror release, as the comment in that file
+   shows.
+3. Bump `VERSION`, then build (`make dist`) and release as usual.

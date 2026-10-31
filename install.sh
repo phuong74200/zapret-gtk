@@ -13,7 +13,8 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ZAPRET_SRC="$SCRIPT_DIR/zapret"
+# Which zapret release to install (version + checksum), shared with the packages.
+. "$SCRIPT_DIR/packaging/zapret-release.sh"
 
 ZAPRET_DEST="/opt/zapret"
 APP_DEST="/usr/local/lib/zapret-tray"
@@ -57,41 +58,43 @@ command -v sudo >/dev/null 2>&1 || die "sudo is required."
 TARGET_USER="$USER"
 info "Installing zapret-gtk for user '$TARGET_USER'."
 
-# zapret source is vendored in-tree (version-locked with this app; no submodule).
-[ -f "$ZAPRET_SRC/Makefile" ] || die "zapret sources missing at $ZAPRET_SRC."
-
 # --- dependencies ----------------------------------------------------------
 
-BUILD_DEPS=(gcc make zlib-devel libcap-devel libnetfilter_queue-devel libmnl-devel)
-RUNTIME_DEPS=(python3-gobject gtk3 libayatana-appindicator-gtk3 \
-              gnome-shell-extension-appindicator nftables curl)
+# zapret's prebuilt binaries are static, so nothing needs compiling.
+DEPS=(python3-gobject gtk3 libayatana-appindicator-gtk3 \
+      gnome-shell-extension-appindicator nftables curl unzip)
 
 if [ "$DO_DEPS" = 1 ]; then
     info "Dependencies to install via dnf:"
-    printf '   build:   %s\n' "${BUILD_DEPS[*]}"
-    printf '   runtime: %s\n' "${RUNTIME_DEPS[*]}"
+    printf '   %s\n' "${DEPS[*]}"
     if confirm "Install them now?"; then
-        sudo dnf install -y "${BUILD_DEPS[@]}" "${RUNTIME_DEPS[@]}"
+        sudo dnf install -y "${DEPS[@]}"
     else
-        warn "Skipping dependency install. Build/runtime may fail without them."
+        warn "Skipping dependency install. The app may fail without them."
     fi
 fi
+for tool in curl unzip sha256sum; do
+    command -v "$tool" >/dev/null 2>&1 || die "'$tool' is required to download zapret."
+done
 
-# --- build zapret ----------------------------------------------------------
+# --- fetch zapret ----------------------------------------------------------
 
-info "Building zapret (nfqws, tpws, ...)..."
-make -C "$ZAPRET_SRC" clean >/dev/null 2>&1 || true
-make -C "$ZAPRET_SRC"
-[ -x "$ZAPRET_SRC/nfq/nfqws" ] || die "Build did not produce nfq/nfqws."
+info "Downloading zapret $ZAPRET_VERSION (official release, checksum-verified)..."
+ZAPRET_ZIP=$(fetch_zapret "$SCRIPT_DIR/build/cache") || die "Could not get zapret $ZAPRET_VERSION."
+STAGE=$(mktemp -d)
+trap 'rm -rf "$STAGE"' EXIT
+stage_zapret "$ZAPRET_ZIP" "$(uname -m)" "$STAGE/zapret" \
+    || die "No zapret binaries for this machine ($(uname -m))."
 
 # --- install zapret to /opt/zapret -----------------------------------------
 
 info "Installing zapret to $ZAPRET_DEST ..."
 sudo mkdir -p "$ZAPRET_DEST"
-# -a preserves the symlinks make created (nfq/nfqws -> binaries/my/nfqws, etc.).
-sudo cp -a "$ZAPRET_SRC"/. "$ZAPRET_DEST"/
-sudo rm -rf "$ZAPRET_DEST/.git"
-# cp -a preserves the source's user_home_t SELinux label, which systemd (init_t)
+# --remove-destination replaces the symlinks an older source build left
+# (nfq/nfqws -> binaries/my/nfqws) instead of writing through them.
+sudo cp -a --remove-destination "$STAGE/zapret"/. "$ZAPRET_DEST"/
+sudo chown -R root:root "$ZAPRET_DEST"
+# cp -a preserves the staging dir's SELinux label, which systemd (init_t)
 # is not allowed to execute. Relabel to the /opt defaults so the service runs.
 if command -v restorecon >/dev/null 2>&1; then
     sudo restorecon -RF "$ZAPRET_DEST" || true

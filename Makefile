@@ -1,11 +1,11 @@
-# zapret-gtk convenience targets. The bundled zapret has its own Makefile under
-# ./zapret; this one wraps the dev/install workflow.
+# zapret-gtk convenience targets. zapret itself is not in this repo: the
+# installers and packages download the official release pinned in
+# packaging/zapret-release.sh.
 
-.PHONY: help build run check install uninstall purge clean windows linux dist
+.PHONY: help run check install uninstall purge clean windows linux dist
 
 help:
 	@echo "targets:"
-	@echo "  build      compile the vendored zapret (nfqws, tpws, ...) in ./zapret"
 	@echo "  run        run the tray app from source (no install)"
 	@echo "  check      byte-compile the Python sources"
 	@echo "  install    run install.sh (deps, /opt/zapret, service, polkit, app)"
@@ -14,10 +14,7 @@ help:
 	@echo "  windows    build the Windows installer (dist/Zapret-<version>-x64.msi)"
 	@echo "  linux      build .deb and .rpm packages (amd64 + arm64) into dist/"
 	@echo "  dist       both of the above (what the release workflow runs)"
-	@echo "  clean      clean zapret build artifacts and __pycache__"
-
-build:
-	$(MAKE) -C zapret
+	@echo "  clean      remove build output (keeps the downloaded zapret in build/cache)"
 
 run:
 	PYTHONPATH=src python3 -m zapret_tray
@@ -43,5 +40,4 @@ linux:
 dist: windows linux
 
 clean:
-	-$(MAKE) -C zapret clean
 	rm -rf src/zapret_tray/__pycache__ build/windows build/linux
