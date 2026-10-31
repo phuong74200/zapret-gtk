@@ -122,6 +122,25 @@ static int service_query(void)
     return result;
 }
 
+/* Split text into lines in place: returns the next non-empty line, or NULL.
+ * (wcstok's signature differs between mingw-w64 versions, so avoid it.) */
+static WCHAR *next_line(WCHAR **cursor)
+{
+    WCHAR *s = *cursor;
+    if (!s)
+        return NULL;
+    while (*s == L'\r' || *s == L'\n')
+        s++;
+    if (!*s) {
+        *cursor = NULL;
+        return NULL;
+    }
+    WCHAR *e = s + wcscspn(s, L"\r\n");
+    *cursor = *e ? e + 1 : NULL;
+    *e = 0;
+    return s;
+}
+
 /* Last few lines winws printed, from the log zapret-service.exe keeps in
  * %ProgramData%\Zapret\winws.log. Skips the launcher's own bookkeeping lines.
  * Returns FALSE if there is nothing useful. */
@@ -154,8 +173,8 @@ static BOOL winws_log_tail(WCHAR *buf, size_t cap)
     /* Keep the last 4 interesting lines. */
     const WCHAR *lines[4];
     int count = 0;
-    WCHAR *ctx = NULL;
-    for (WCHAR *line = wcstok(text, L"\r\n", &ctx); line; line = wcstok(NULL, L"\r\n", &ctx)) {
+    WCHAR *cursor = text;
+    for (WCHAR *line; (line = next_line(&cursor)) != NULL;) {
         if (!*line || wcsncmp(line, L"zapret-service: starting", 24) == 0
             || wcsncmp(line, L"zapret-service: winws exited", 28) == 0)
             continue;

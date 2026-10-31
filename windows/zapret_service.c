@@ -108,6 +108,25 @@ static BOOL exe_dir(WCHAR *dir, size_t cap)
     return TRUE;
 }
 
+/* Split text into lines in place: returns the next non-empty line, or NULL.
+ * (wcstok's signature differs between mingw-w64 versions, so avoid it.) */
+static WCHAR *next_line(WCHAR **cursor)
+{
+    WCHAR *s = *cursor;
+    if (!s)
+        return NULL;
+    while (*s == L'\r' || *s == L'\n')
+        s++;
+    if (!*s) {
+        *cursor = NULL;
+        return NULL;
+    }
+    WCHAR *e = s + wcscspn(s, L"\r\n");
+    *cursor = *e ? e + 1 : NULL;
+    *e = 0;
+    return s;
+}
+
 /* Append the options from winws.conf to cmd: lines are joined with spaces,
  * blank lines and lines starting with # are skipped. */
 static DWORD read_options(const WCHAR *conf, WCHAR *cmd, size_t cap)
@@ -138,8 +157,8 @@ static DWORD read_options(const WCHAR *conf, WCHAR *cmd, size_t cap)
         goto done;
     }
 
-    WCHAR *ctx = NULL;
-    for (WCHAR *line = wcstok(text, L"\r\n", &ctx); line; line = wcstok(NULL, L"\r\n", &ctx)) {
+    WCHAR *cursor = text;
+    for (WCHAR *line; (line = next_line(&cursor)) != NULL;) {
         while (*line == L' ' || *line == L'\t')
             line++;
         size_t n = wcslen(line);

@@ -14,6 +14,8 @@ One switch to turn [zapret](https://github.com/bol-van/zapret) (DPI circumventio
 
 **Windows:** run the `.msi`. If SmartScreen warns about an unknown publisher (the installer isn't code-signed), choose *More info → Run anyway*. Running a newer `.msi` upgrades the installed version.
 
+Microsoft Defender may flag the app with a machine-learning detection (names ending in `!ml`). That's a false positive common for new, unsigned programs, and zapret tools in particular, since they intercept network traffic. If it happens, open Windows Security → Protection history, pick the item, and choose *Allow on device*, then run the installer again. The source for everything in the installer is in this repository.
+
 **Debian / Ubuntu:**
 
 ```bash
