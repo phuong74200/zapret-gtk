@@ -1,0 +1,86 @@
+# nfpm config for the Linux packages (.deb and .rpm). Used by
+# packaging/build-linux.sh, which stages the files and fills in the ARCH,
+# VERSION, STAGE and ROOT placeholders. Installs the same layout as install.sh,
+# under /usr instead of /usr/local, plus /opt/zapret.
+name: zapret-gtk
+arch: ${ARCH}
+platform: linux
+version: ${VERSION}
+release: 1
+section: net
+priority: optional
+maintainer: phuong74200 <phuong74200@users.noreply.github.com>
+vendor: zapret-gtk
+homepage: https://github.com/phuong74200/zapret-gtk
+license: MIT
+description: |-
+  Tray toggle for zapret, a DPI circumvention tool.
+  One switch, in the system tray and a small window, that turns zapret on or
+  off without a password. Bundles zapret (static nfqws/tpws) in /opt/zapret and
+  runs it as zapret.service with nftables.
+
+contents:
+  # zapret: scripts, fake packets and the static binaries.
+  - src: ${STAGE}/opt/zapret
+    dst: /opt/zapret
+  - dst: /opt/zapret
+    type: dir
+    file_info:
+      mode: 0755
+  # The DPI strategy (NFQWS_OPT etc.). Kept on upgrade if you edited it.
+  - src: ${STAGE}/config
+    dst: /opt/zapret/config
+    type: config|noreplace
+    file_info:
+      mode: 0644
+
+  # The tray app.
+  - src: ${STAGE}/app/zapret_tray
+    dst: /usr/lib/zapret-tray/zapret_tray
+  - src: ${STAGE}/zapret-tray
+    dst: /usr/bin/zapret-tray
+    file_info:
+      mode: 0755
+  - src: ${STAGE}/icons/zapret-on-symbolic.svg
+    dst: /usr/share/icons/hicolor/scalable/status/zapret-on-symbolic.svg
+  - src: ${STAGE}/icons/zapret-off-symbolic.svg
+    dst: /usr/share/icons/hicolor/scalable/status/zapret-off-symbolic.svg
+  - src: ${STAGE}/org.zapret.Tray.desktop
+    dst: /usr/share/applications/org.zapret.Tray.desktop
+  - src: ${STAGE}/autostart.desktop
+    dst: /etc/xdg/autostart/org.zapret.Tray.desktop
+    type: config|noreplace
+
+  # The service and the polkit rule that lets the tray control it.
+  - src: ${STAGE}/zapret.service
+    dst: /usr/lib/systemd/system/zapret.service
+  - src: ${STAGE}/50-zapret.rules
+    dst: /usr/share/polkit-1/rules.d/50-zapret.rules
+
+scripts:
+  postinstall: ${ROOT}/packaging/scripts/postinstall.sh
+  preremove: ${ROOT}/packaging/scripts/preremove.sh
+  postremove: ${ROOT}/packaging/scripts/postremove.sh
+
+recommends:
+  - gnome-shell-extension-appindicator  # tray icon on GNOME
+  - curl                                # blockcheck
+
+overrides:
+  deb:
+    # Debian 12+, Ubuntu 24.04+ (polkitd with JavaScript rules).
+    depends:
+      - python3
+      - python3-gi
+      - gir1.2-gtk-3.0
+      - gir1.2-ayatanaappindicator3-0.1
+      - nftables
+      - polkitd
+  rpm:
+    # Fedora and friends.
+    depends:
+      - python3-gobject
+      - gtk3
+      - libayatana-appindicator-gtk3
+      - nftables
+      - polkit

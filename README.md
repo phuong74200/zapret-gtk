@@ -69,6 +69,35 @@ libayatana-appindicator-gtk3 nftables curl`).
 
 ## Install
 
+### Packages (easiest)
+
+Download from [Releases](https://github.com/phuong74200/zapret-gtk/releases):
+
+| System | Package |
+|---|---|
+| Windows 10/11 x64 | `Zapret-<version>-x64.msi` (see [Windows](#windows)) |
+| Debian 12+, Ubuntu 24.04+ | `zapret-gtk_<version>-1_amd64.deb` / `_arm64.deb` |
+| Fedora | `zapret-gtk-<version>-1.x86_64.rpm` / `.aarch64.rpm` |
+
+```bash
+sudo apt install ./zapret-gtk_*_amd64.deb      # Debian / Ubuntu
+sudo dnf install ./zapret-gtk-*.x86_64.rpm     # Fedora
+```
+
+Then open **Zapret** and flip the switch; there's nothing else to set up. The
+packages install the same pieces as `install.sh` (under `/usr` instead of
+`/usr/local`), with zapret's prebuilt static binaries in `/opt/zapret` and the
+bundled default strategy. Differences from `install.sh`:
+
+- no interactive blockcheck step (run `sudo /opt/zapret/blockcheck.sh` later
+  to tune, see below);
+- the polkit rule lets **any user in an active local session** start/stop/restart
+  `zapret.service` (a package can't know which user installed it).
+
+If you used `install.sh` before, run `bash uninstall.sh` first.
+
+### From source (Fedora)
+
 ```bash
 git clone <this-repo> zapret-gtk
 cd zapret-gtk
@@ -130,12 +159,61 @@ PYTHONPATH=src python3 -m zapret_tray
 
 (Start/stop still needs `zapret.service` + the polkit rule installed.)
 
+## Windows
+
+A native Windows port lives in `windows/`: the same one-toggle tray app
+(`zapret-tray.exe`, plain Win32/C) packaged as an **MSI** together with
+zapret's Windows engine (`winws` + the WinDivert driver from the official
+release). Install it by double-clicking the MSI; there is nothing else to set up.
+
+| Linux                               | Windows                                         |
+|-------------------------------------|-------------------------------------------------|
+| `zapret.service` (systemd)          | `zapret` Windows service running `winws.exe`   |
+| polkit rule for your user           | service permissions granted to the installing user |
+| `/opt/zapret/config` (`NFQWS_OPT`)  | `C:\Program Files\Zapret\winws.conf`           |
+| `~/.config/autostart` entry         | `HKCU\…\CurrentVersion\Run` value               |
+
+Tray icon: left-click opens the window, right-click the menu, middle-click flips
+zapret on/off. Windows 10/11 x64. See `windows/README.txt` (installed alongside
+the app) for tuning and troubleshooting.
+
+Build the installer on Linux (cross-compiled; no Windows machine needed):
+
+```bash
+sudo dnf install mingw64-gcc msitools        # Fedora
+# sudo apt install gcc-mingw-w64-x86-64 wixl  # Debian/Ubuntu
+make windows                                  # -> dist/Zapret-<version>-x64.msi
+```
+
+The build downloads the zapret release matching the vendored `zapret/` and
+checks its SHA-256 (pinned in `packaging/zapret-release.sh`) before bundling it.
+
+## Releases
+
+`.github/workflows/release.yml` builds the MSI and the `.deb`/`.rpm` packages
+(amd64 + arm64) and publishes them as a GitHub Release when a version tag is
+pushed:
+
+```bash
+# 1. set the new version in VERSION and src/zapret_tray/__init__.py, then commit
+git tag v0.1.2
+git push origin main v0.1.2
+```
+
+The workflow refuses a tag that doesn't match `VERSION`. Running it by hand
+(Actions → Release → Run workflow) builds everything without publishing; the
+files are attached to the run as an artifact. Locally, `make dist` does the same
+build (needs mingw-w64, wixl and [nfpm](https://nfpm.goreleaser.com)).
+
 ## Uninstall
 
 ```bash
 bash uninstall.sh              # remove app, service, polkit rule, autostart
 bash uninstall.sh --purge      # also delete /opt/zapret (config, host lists)
 ```
+
+Packages: `sudo apt remove zapret-gtk` (`apt purge` also deletes `/opt/zapret`)
+or `sudo dnf remove zapret-gtk`. Windows: Settings → Apps → Zapret.
 
 ## Troubleshooting
 

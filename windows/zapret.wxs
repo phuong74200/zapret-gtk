@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  MSI for zapret-tray on Windows. Built on Linux with wixl (msitools) by
+  windows/build.sh, which passes:
+    -D Version=...   product version (x.y.z)
+    -D BuildDir=...  zapret-tray.exe, icons, License.rtf, winws.conf, README.txt
+    -D WinwsDir=...  winws.exe, cygwin1.dll, WinDivert.dll, WinDivert64.sys
+
+  What it installs (the Windows equivalent of install.sh):
+    C:\Program Files\Zapret\zapret-tray.exe   the tray toggle (runs as the user)
+    C:\Program Files\Zapret\zapret-service.exe the service: runs winws with winws.conf's options
+    C:\Program Files\Zapret\winws\            zapret's Windows engine (from the official release)
+    C:\Program Files\Zapret\winws.conf        winws options; kept across upgrades and uninstall
+    "zapret" service                          runs zapret-service.exe; manual start
+    service permissions                       the installing user may start/stop it (like the polkit rule)
+    Start Menu shortcut "Zapret"
+
+  The GUIDs below must never change: Windows Installer uses them to recognise
+  upgrades and to track files.
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Zapret"
+           Language="1033"
+           Version="$(var.Version)"
+           Manufacturer="zapret-gtk"
+           UpgradeCode="5371A834-005F-4F68-B6AB-95A09041D551">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="Zapret DPI bypass with a tray toggle"
+             Comments="Includes winws from https://github.com/bol-van/zapret" />
+
+    <!-- Any Zapret MSI replaces the installed one: older versions, and also a
+         rebuild with the same version number (each build gets a new ProductCode,
+         so without AllowSameVersionUpgrades it would install side by side). -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes"
+                  DowngradeErrorMessage="A newer version of Zapret is already installed." />
+    <Media Id="1" Cabinet="zapret.cab" EmbedCab="yes" />
+
+    <Icon Id="ZapretIcon" SourceFile="$(var.BuildDir)/zapret-on.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ZapretIcon" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/bol-van/zapret" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramMenuFolder" />
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="Zapret">
+          <Directory Id="WINWSDIR" Name="winws" />
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="TrayApp" Guid="AB4A6743-0B3B-42BA-9D55-765BD0CE2F08" Win64="yes">
+        <File Id="ZapretTrayExe" Name="zapret-tray.exe"
+              Source="$(var.BuildDir)/zapret-tray.exe" KeyPath="yes" />
+        <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Zapret"
+                  Description="Turn zapret DPI bypass on or off"
+                  Target="[#ZapretTrayExe]" WorkingDirectory="INSTALLDIR" />
+      </Component>
+
+      <Component Id="Docs" Guid="ADF7712C-226D-44CA-92D9-29B670204F74" Win64="yes">
+        <File Id="ReadmeTxt" Name="README.txt" Source="$(var.BuildDir)/README.txt" KeyPath="yes" />
+        <File Id="LicenseTxt" Name="LICENSE.txt" Source="$(var.BuildDir)/LICENSE.txt" />
+      </Component>
+
+      <!-- Start at login for the installing user, on by default like the Linux
+           autostart entry. The app's "Start at login" checkbox edits this same
+           value afterwards. Written by the installer, not by the app itself:
+           an unsigned exe adding itself to Run looks like malware to Defender. -->
+      <Component Id="Autostart" Guid="257BD2A7-07D5-4B60-9285-4400730563AA" Win64="yes">
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run"
+                       Name="ZapretTray" Type="string"
+                       Value="&quot;[#ZapretTrayExe]&quot; --hidden" KeyPath="yes" />
+      </Component>
+
+      <!-- The user's strategy, left in place on uninstall like /opt/zapret/config
+           on Linux. Upgrades don't overwrite it once edited: Windows Installer
+           never replaces an unversioned file modified after it was installed. -->
+      <Component Id="WinwsConf" Guid="B5C0270B-8B2F-420C-8D9E-A4250DFA7250" Win64="yes"
+                 Permanent="yes">
+        <File Id="WinwsConfFile" Name="winws.conf" Source="$(var.BuildDir)/winws.conf" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="Service" Guid="7EBF9162-CDEB-4FBA-8C3D-DA03783D89CE" Win64="yes">
+        <File Id="ZapretServiceExe" Name="zapret-service.exe"
+              Source="$(var.BuildDir)/zapret-service.exe" KeyPath="yes" />
+
+        <!-- Not started at boot: the tray app starts it, and restores the user's
+             last on/off choice at login. -->
+        <ServiceInstall Id="ZapretService"
+                        Name="zapret"
+                        DisplayName="zapret (DPI bypass)"
+                        Description="Runs winws, zapret's DPI circumvention engine. Controlled by the Zapret tray app."
+                        Type="ownProcess"
+                        Start="demand"
+                        ErrorControl="normal"
+                        Vital="yes" />
+        <ServiceControl Id="ZapretServiceControl" Name="zapret"
+                        Stop="both" Remove="uninstall" Wait="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="WINWSDIR">
+      <Component Id="Winws" Guid="889D1849-D140-4910-BAE9-24DA62A71F83" Win64="yes">
+        <File Id="WinwsExe" Name="winws.exe" Source="$(var.WinwsDir)/winws.exe" KeyPath="yes" />
+        <File Id="Cygwin1Dll" Name="cygwin1.dll" Source="$(var.WinwsDir)/cygwin1.dll" />
+        <File Id="WinDivertDll" Name="WinDivert.dll" Source="$(var.WinwsDir)/WinDivert.dll" />
+        <File Id="WinDivertSys" Name="WinDivert64.sys" Source="$(var.WinwsDir)/WinDivert64.sys" />
+        <File Id="ZapretLicense" Name="LICENSE-zapret.txt" Source="$(var.BuildDir)/LICENSE-zapret.txt" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Main" Title="Zapret" Level="1">
+      <ComponentRef Id="TrayApp" />
+      <ComponentRef Id="Docs" />
+      <ComponentRef Id="Autostart" />
+      <ComponentRef Id="WinwsConf" />
+      <ComponentRef Id="Winws" />
+      <ComponentRef Id="Service" />
+    </Feature>
+
+    <!-- Give the installing user start/stop rights on the service (the Windows
+         counterpart of data/50-zapret.rules): adds one entry for [UserSID] to the
+         service's permissions. Runs as SYSTEM. -->
+    <CustomAction Id="GrantServiceAccess"
+                  FileKey="ZapretTrayExe"
+                  ExeCommand="--grant-service-access [UserSID]"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="check" />
+
+    <!-- On uninstall, close running tray apps (any user) so their exe can be removed. -->
+    <CustomAction Id="CloseTrayApps"
+                  FileKey="ZapretTrayExe"
+                  ExeCommand="--close-running"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <!-- After an interactive install, start the tray app as the user. -->
+    <CustomAction Id="LaunchTrayApp"
+                  FileKey="ZapretTrayExe"
+                  ExeCommand=""
+                  Impersonate="yes"
+                  Return="asyncNoWait" />
+
+    <InstallExecuteSequence>
+      <Custom Action="CloseTrayApps" After="InstallInitialize">REMOVE~="ALL"</Custom>
+      <Custom Action="GrantServiceAccess" After="InstallServices">NOT REMOVE~="ALL" AND UserSID</Custom>
+    </InstallExecuteSequence>
+
+    <InstallUISequence>
+      <Custom Action="LaunchTrayApp" After="ExecuteAction">NOT Installed AND NOT REMOVE</Custom>
+    </InstallUISequence>
+
+    <UIRef Id="WixUI_Minimal" />
+  </Product>
+</Wix>

@@ -1,0 +1,34 @@
+#include <windows.h>
+#include "resource.h"
+
+/* Icons are generated into the build directory by make_icons.py. */
+IDI_APP ICON "zapret-on.ico"
+IDI_ON  ICON "zapret-on.ico"
+IDI_OFF ICON "zapret-off.ico"
+
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "zapret_tray.manifest"
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION     APP_VERSION_NUM
+PRODUCTVERSION  APP_VERSION_NUM
+FILEOS          VOS_NT_WINDOWS32
+FILETYPE        VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription",  "Zapret"
+            VALUE "ProductName",      "Zapret tray"
+            VALUE "FileVersion",      APP_VERSION_STR
+            VALUE "ProductVersion",   APP_VERSION_STR
+            VALUE "InternalName",     "zapret-tray"
+            VALUE "OriginalFilename", "zapret-tray.exe"
+            VALUE "LegalCopyright",   "MIT License"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

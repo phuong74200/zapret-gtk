@@ -1,0 +1,101 @@
+# Builds the Windows installer and the Linux packages, and publishes them as a
+# GitHub Release when a version tag is pushed:
+#
+#   1. set the new version in VERSION and src/zapret_tray/__init__.py, commit
+#   2. git tag v0.1.2 && git push origin main v0.1.2
+#
+# Running it by hand (Actions -> Release -> Run workflow) builds everything and
+# keeps the files as a workflow artifact, without publishing a release.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  NFPM_VERSION: "2.47.0"
+  NFPM_SHA256: 3f1cf344bd0b57373ca55636a78c08b0491f7293d609a456a9ac3b0b150fda97
+
+jobs:
+  build:
+    name: Build packages
+    runs-on: ubuntu-24.04
+    # Debian trixie ships wixl 0.106, the version the MSI is tested with.
+    container: debian:trixie
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git unzip python3 make \
+            gcc-mingw-w64-x86-64 binutils-mingw-w64-x86-64 wixl
+          curl -fsSLO "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_amd64.deb"
+          echo "${NFPM_SHA256}  nfpm_${NFPM_VERSION}_amd64.deb" | sha256sum -c -
+          apt-get install -y "./nfpm_${NFPM_VERSION}_amd64.deb"
+          rm "nfpm_${NFPM_VERSION}_amd64.deb"
+
+      - uses: actions/checkout@v7
+
+      - name: Trust the checkout
+        # The container runs as root but the workspace belongs to the runner user.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check the tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          if [ "v$(cat VERSION)" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match the VERSION file ($(cat VERSION))"
+            exit 1
+          fi
+
+      - name: Cache the zapret release download
+        uses: actions/cache@v6
+        with:
+          path: build/cache
+          key: zapret-${{ hashFiles('packaging/zapret-release.sh') }}
+
+      - name: Build Windows installer
+        run: make windows
+
+      - name: Build Linux packages
+        run: make linux
+
+      - name: Checksums
+        run: cd dist && sha256sum -- * > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: dist
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sed "s/{{VERSION}}/$version/g" packaging/release-notes.md > notes.md
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --verify-tag \
+            --title "zapret-gtk $GITHUB_REF_NAME" \
+            --notes-file notes.md \
+            --generate-notes
